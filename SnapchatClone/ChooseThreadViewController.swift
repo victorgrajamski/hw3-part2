@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import FirebaseAuth
 
 class ChooseThreadViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
     
@@ -34,9 +35,7 @@ class ChooseThreadViewController: UIViewController, UITableViewDelegate, UITable
     @IBAction func postToFeed(_ sender: UIButton) {
         if let threadName = chosenThreadLabel.text, threadName != "" {
             if let imageToPost = chosenImage {
-                // TODO:
-                // Uncomment the line below.
-//                addPost(postImage: imageToPost, thread: threadName, username: (Auth.auth().currentUser?.displayName)!)
+               addPost(postImage: imageToPost, thread: threadName, username: (Auth.auth().currentUser?.displayName)!)
                 performSegue(withIdentifier: "unwindToImagePicker", sender: nil)
             }
         } else {

@@ -8,6 +8,8 @@
 
 import Foundation
 import UIKit
+import FirebaseDatabase
+import FirebaseStorage
 
 var threads: [String: [Post]] = ["Memes": [], "Dog Spots": [], "Random": []]
 
@@ -39,8 +41,6 @@ func clearThreads() {
 }
 
 /*
- TODO:
- 
  Store the data for a new post in the Firebase database.
  Make sure you understand the hierarchy of the Posts tree before attempting to write any data to Firebase!
  Each post node contains the following properties:
@@ -57,44 +57,40 @@ func clearThreads() {
  
  Remember, DO NOT USE ACTUAL STRING VALUES WHEN REFERENCING A PATH! YOU SHOULD ONLY USE THE CONSTANTS DEFINED IN STRINGS.SWIFT
  
- */
+*/
 func addPost(postImage: UIImage, thread: String, username: String) {
-    // Uncomment the lines beneath this one if you've already connected Firebase:
-//    let dbRef = Database.database().reference()
-//    let data = UIImageJPEGRepresentation(postImage, 1.0)
-//    let path = "Images/\(UUID().uuidString)"
-//
-//    let dateFormatter = DateFormatter()
-//    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.A"
-//    let dateString = dateFormatter.string(from: Date())
-//    let postDict: [String:AnyObject] = ["imagePath": path as AnyObject,
-//                                        "username": username as AnyObject,
-//                                        "thread": thread as AnyObject,
-//                                        "date": dateString as AnyObject]
-    // YOUR CODE HERE
+    let dbRef = Database.database().reference()
+    let data = UIImageJPEGRepresentation(postImage, 1.0)!
+    let path = "Images/\(UUID().uuidString)"
+
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.A"
+    let dateString = dateFormatter.string(from: Date())
+    let postDict: [String:AnyObject] = ["imagePath": path as AnyObject,
+                                        "username": username as AnyObject,
+                                        "thread": thread as AnyObject,
+                                        "date": dateString as AnyObject]
+
+    let key = dbRef.child(firPostsNode).childByAutoId().key!
+    let childUpdates = ["/\(firPostsNode)/\(key)": postDict]
+    dbRef.updateChildValues(childUpdates)
+    store(data: data, toPath: path)
 }
-
-
-// TODO:
-// Uncomment the lines inside this function. This is the function that actually sends
-// your data to Firebase's Storage to store it using the given 'path' as it's
-// reference.
-//
-func store(data: Data?, toPath path: String) {
-//    let storageRef = Storage.storage().reference()
-//    storageRef.child(path).putData(data!, metadata: nil) { (metadata, error) in
-//        if let error = error {
-//            print(error)
-//        }
-//    }
-}
-
-
 
 
 /*
- TODO:
- 
+ This is the function that actually sends your data to Firebase's Storage to store it using the given 'path' as it's reference.
+*/
+func store(data: Data?, toPath path: String) {
+    let storageRef = Storage.storage().reference()
+    storageRef.child(path).putData(data!, metadata: nil) { (metadata, error) in
+        if let error = error {
+            print(error)
+        }
+    }
+}
+
+/*
  This function should query Firebase for all posts and return an array of Post objects.
  You should use the function 'observeSingleEvent' (with the 'of' parameter set to .value) to get a snapshot of all of the nodes under "Posts".
  If the snapshot exists, store its value as a dictionary of type [String:AnyObject], where the string key corresponds to the ID of each post.
@@ -110,22 +106,46 @@ func store(data: Data?, toPath path: String) {
  Remember to use constants defined in Strings.swift to refer to the correct path!
  */
 func getPosts(user: CurrentUser, completion: @escaping ([Post]?) -> Void) {
-    
+    let dbRef = Database.database().reference()
+    let dbPath = dbRef.child(firPostsNode)
+    var postArray: [Post] = []
+    dbPath.observeSingleEvent(of: .value, with: { snapshot -> Void in
+        if snapshot.exists() {
+            if let posts = snapshot.value as? [String:AnyObject] {
+                user.getReadPostIDs(completion: { (ids) in
+                    for postKey in posts.keys {
+                        var read = false
+                        if let readPostIDs = user.readPostIDs {
+                            if readPostIDs.contains(postKey) {
+                                read = true
+                            }
+                        }
+                        
+                        let post = Post(id: postKey, username: (posts[postKey]![firUsernameNode] as AnyObject) as! String, postImagePath: (posts[postKey]![firImagePathNode] as AnyObject) as! String, thread: (posts[postKey]![firThreadNode] as AnyObject) as! String, dateString: (posts[postKey]![firDateNode] as AnyObject) as! String, read: read)
+                        
+                        postArray.append(post)  
+                    }
+                    completion(postArray)
+                })
+            } else {
+                completion(nil)
+            }
+        } else {
+            completion(nil)
+        }
+    })
 }
 
-// TODO:
-// Uncomment the lines in the function when you reach the appriopriate par in the README.
 func getDataFromPath(path: String, completion: @escaping (Data?) -> Void) {
-//    let storageRef = Storage.storage().reference()
-//    storageRef.child(path).getData(maxSize: 5 * 1024 * 1024) { (data, error) in
-//        if let error = error {
-//            print(error)
-//        }
-//        if let data = data {
-//            completion(data)
-//        } else {
-//            completion(nil)
-//        }
-//    }
+    let storageRef = Storage.storage().reference()
+    storageRef.child(path).getData(maxSize: 5 * 1024 * 1024) { (data, error) in
+        if let error = error {
+            print(error)
+        }
+        if let data = data {
+            completion(data)
+        } else {
+            completion(nil)
+        }
+    }
 }
-
